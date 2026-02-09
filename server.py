@@ -1,20 +1,21 @@
 from flask import Flask, request, jsonify
 import logging
-from config import SERVER_HOST, SERVER_PORT, WHATSAPP_API_KEY
-from whatsapp_handler import handle_whatsapp_webhook, send_linking_code_to_whatsapp
+from config import SERVER_HOST, SERVER_PORT, WHATSAPP_API_KEY, TELEGRAM_BOT_TOKEN
+from whatsapp_handler import handle_whatsapp_webhook
 from database import Database
+from telegram import Bot
 
 app = Flask(__name__)
 db = Database()
+bot = Bot(token=TELEGRAM_BOT_TOKEN)
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-@app.route('/webhook', methods=['GET', 'POST'])
-def webhook():
+@app.route('/webhook/whatsapp', methods=['GET', 'POST'])
+def whatsapp_webhook():
     """نقطة نهاية الـ Webhook للواتساب"""
     if request.method == 'GET':
-        # التحقق من الـ token
         token = request.args.get('hub.verify_token')
         challenge = request.args.get('hub.challenge')
         
@@ -27,6 +28,18 @@ def webhook():
         handle_whatsapp_webhook(data)
         return jsonify({"status": "ok"}), 200
 
+@app.route('/webhook/telegram', methods=['POST'])
+def telegram_webhook():
+    """نقطة نهاية الـ Webhook للتليجرام"""
+    try:
+        data = request.get_json()
+        update = data
+        logger.info(f"تليجرام: {update}")
+        return jsonify({"status": "ok"}), 200
+    except Exception as e:
+        logger.error(f"خطأ في الـ Webhook: {str(e)}")
+        return jsonify({"error": str(e)}), 400
+
 @app.route('/health', methods=['GET'])
 def health():
     """فحص صحة السيرفر"""
@@ -35,14 +48,7 @@ def health():
 @app.route('/api/users', methods=['GET'])
 def get_users():
     """الحصول على قائمة المستخدمين المرتبطين"""
-    conn = db.db_path
-    # عرض المستخدمين
     return jsonify({"message": "قائمة المستخدمين"}), 200
 
-def run():
-    """تشغيل السيرفر"""
-    logger.info(f"السيرفر يعمل على {SERVER_HOST}:{SERVER_PORT}")
-    app.run(host=SERVER_HOST, port=SERVER_PORT, debug=False)
-
 if __name__ == '__main__':
-    run()
+    app.run(host=SERVER_HOST, port=SERVER_PORT, debug=False)
